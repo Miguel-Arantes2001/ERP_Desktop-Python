@@ -1,0 +1,257 @@
+/* =========================
+   BASE
+========================= */
+
+QWidget {
+    background-color: #F5F7FA;
+    color: #111827;
+    font-family: "Segoe UI";
+    font-size: 10pt;
+}
+
+/* =========================
+   LABELS
+========================= */
+
+QLabel {
+    color: #111827;
+}
+
+QLabel#title {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+QLabel#subtitle {
+    font-size: 14px;
+    color: #374151;
+}
+
+/* =========================
+   BUTTONS
+========================= */
+
+QPushButton {
+    background-color: #2563EB;
+    color: '#ffffff';
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-weight: 600;
+}
+
+QPushButton:hover {
+    background-color: #1D4ED8;
+}
+
+QPushButton:pressed {
+    background-color: #1E40AF;
+    border-radius: 10px;
+    border: 1px solid #111827;
+}
+
+QPushButton:disabled {
+    background-color: #9CA3AF;
+    color: #E5E7EB;
+}
+
+/* Botão secundário */
+QPushButton#secondary {
+    background-color: #E5E7EB;
+    color: #111827;
+}
+
+QPushButton#secondary:hover {
+    background-color: #D1D5DB;
+}
+
+/* =========================
+   INPUTS
+========================= */
+
+QLineEdit{
+    background-color: #FFFFFF;
+    color: #111827;
+    border: 1px solid #9CA3AF;
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 13px;
+}
+QTextEdit,
+QComboBox,
+QSpinBox,
+QDoubleSpinBox,
+QDateEdit {
+    background-color: white;
+    border: 1px solid #D1D5DB;
+    border-radius: 5px;
+    padding: 6px;
+    color: #111827;
+
+}
+
+QLineEdit:focus{
+    border: 1px solid #2563EB;
+    background-color: #FFFFFF;
+}
+QComboBox:focus,
+QSpinBox:focus,
+QDoubleSpinBox:focus,
+QDateEdit:focus {
+    border: 1px solid #2563EB;
+}
+QTextEdit:focus{
+    border: 1px solid #2563EB;
+}
+
+/* =========================
+   TABLES
+========================= */
+
+QTableWidget {
+    background-color: white;
+    border: 1px solid #D1D5DB;
+}
+
+QTableWidget::item {
+    padding: 6px;
+}
+
+QTableWidget::item:selected {
+    background-color: #2563EB;
+    color: white;
+}
+
+
+QHeaderView::section {
+    background-color: #F3F4F6;
+    color: #111827;
+    padding: 6px;
+    border: 1px solid #D1D5DB;
+    font-weight: 600;
+}
+
+/* =========================
+   SCROLLBAR
+========================= */
+
+QScrollBar:vertical {
+    background: #F3F4F6;
+    width: 10px;
+    margin: 0;
+}
+
+QScrollBar::handle:vertical {
+    background: #9CA3AF;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #6B7280;
+}
+
+QScrollBar::add-line,
+QScrollBar::sub-line {
+    height: 0;
+}
+
+/* =========================
+   DIALOGS
+========================= */
+
+QDialog {
+    background-color: #F9FAFB;
+}
+
+/* =========================
+   STATUS BAR
+========================= */
+
+QStatusBar {
+    background-color: #F3F4F6;
+    color: #374151;
+}
+
+/* =========================
+   CHECKBOX 
+========================= */
+
+QCheckBox {
+    color: #111827;
+    font-size: 13px;
+    padding-left: 24px;  
+}
+
+/* caixa */
+QCheckBox::indicator {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #6B7280;
+    background-color: #FFFFFF;
+    border-radius: 3px;
+}
+
+/* marcada */
+QCheckBox::indicator:checked {
+    background-color: #2563EB;
+    border: 2px solid #1E40AF;
+}
+
+/* símbolo ✓ */
+QCheckBox::indicator:checked::after {
+    color: white;
+    font-size: 11px;
+    font-weight: bold;
+
+    position: absolute;
+    left: 2px;
+    top: -2px;
+}
+
+
+QFrame#totalCard {
+    background-color: #FFFFFF;
+    border-radius: 12px;
+    border: 1px solid #E5E7EB;
+}
+
+QLabel#cardTitle {
+    font-size: 20px;
+    color: #6b7280;
+}
+
+QLabel#cardValue {
+    font-size: 26px;
+    font-weight: bold;
+    color: #1f2937;
+}
+
+QTableWidget QLineEdit {
+    background-color: #ffffff;
+    color: #111827;
+    border: 1px solid #2563EB;
+    border-radius: 4px;
+    padding: 4px;
+    font-size: 14px;
+}
+
+/* =========================
+   BOTÕES QTD PDV
+========================= */
+
+QPushButton#qtyPlus,
+QPushButton#qtyMinus {
+    background-color: #d1d1d1;
+    border: none;
+    border-radius: 16px;
+}
+
+QPushButton#qtyPlus:hover,
+QPushButton#qtyMinus:hover {
+    background-color: #7593f4;
+}
+
+QPushButton#qtyPlus:pressed,
+QPushButton#qtyMinus:pressed {
+    background-color: #d1d1d1;
+}
