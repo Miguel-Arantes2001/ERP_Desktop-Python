@@ -158,12 +158,12 @@ Mais do que um ERP funcional, é um projeto focado em **boas práticas, arquitet
 📄 Projeto desenvolvido para fins educacionais e demonstração técnica.
 
 ## 🖥️ Screenshots do Sistema
-![Tela de Login](assets/login.png)
-![Dashboard](assets/dashboard.png)
-![PDV](assets/pdv.png)
-![Estoque](assets/estoque.png)
-![Movimentações](assets/movimentaçoes.png)
-![Vendas](assets/vendas.png)
+![Tela de Login](assets/screenshots/login.png)
+![Dashboard](assets/screenshots/dashboard.png)
+![PDV](assets/screenshots/pdv.png)
+![Estoque](assets/screenshots/estoque.png)
+![Movimentações](assets/screenshots/movimentaçoes.png)
+![Vendas](assets/screenshots/vendas.png)
 
 
 
