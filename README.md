@@ -38,6 +38,7 @@ erp-backend (FastAPI)
 erp-backend/     API (rotas, models, auth, SQLite)
 erp-frontend/    App desktop (views, services, QSS)
 docs/            Notas internas do projeto
+assets/          Screenshots
 ```
 
 ## Como rodar
@@ -84,6 +85,20 @@ A UI espera a API em `http://127.0.0.1:8000`.
 | Desktop | PySide6, requests |
 | Foto | QR Code + upload pelo celular (Pillow) |
 | Cupom | `pywin32` (Windows) |
+
+## Screenshots
+
+| Login | Dashboard |
+| --- | --- |
+| ![Login](assets/screenshots/login.png) | ![Dashboard](assets/screenshots/dashboard.png) |
+
+| PDV | Estoque |
+| --- | --- |
+| ![PDV](assets/screenshots/pdv.png) | ![Estoque](assets/screenshots/estoque.png) |
+
+| Movimentações | Vendas |
+| --- | --- |
+| ![Movimentações](assets/screenshots/movimentações.png) | ![Vendas](assets/screenshots/vendas.png) |
 
 ## Segurança neste repositório
 
