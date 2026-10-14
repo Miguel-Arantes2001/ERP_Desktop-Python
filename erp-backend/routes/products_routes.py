@@ -70,7 +70,7 @@ def _ensure_unique_barcode(
         )
 
 
-@products_router.post("", status_code=HTTPStatus.CREATED)
+@products_router.post("", status_code=HTTPStatus.CREATED,response_model=ProductResponseSchema)
 async def create_product(
     product: ProductCreateSchema,
     db: Session = Depends(get_db),

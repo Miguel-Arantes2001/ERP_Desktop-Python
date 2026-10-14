@@ -75,6 +75,40 @@ python main.py
 
 A UI espera a API em `http://127.0.0.1:8000`.
 
+## Backup e restauração
+
+O backend gera um backup do banco toda vez que sobe, antes de rodar as migrations. Se já existir um backup recente (12h por padrão), ele pula. Os arquivos ficam em `erp-backend/backups/` com nome `erp-AAAAMMDD-HHMMSS.db`.
+
+A cópia usa a Online Backup API do SQLite, não um `copy` do arquivo — o backup sai consistente mesmo com o sistema em uso.
+
+Backup manual:
+
+```bash
+cd erp-backend
+python backup.py --force
+```
+
+Configuração no `.env` (todas opcionais):
+
+| Variável | Padrão | Para que serve |
+|---|---|---|
+| `BACKUP_DIR` | `erp-backend/backups` | Onde guardar os backups |
+| `BACKUP_EXTERNAL_DIR` | vazio | 2ª cópia: pendrive, HD externo ou pasta do OneDrive/Drive |
+| `BACKUP_RETENTION` | `30` | Quantos backups manter (os mais antigos são apagados) |
+| `BACKUP_MIN_INTERVAL_HOURS` | `12` | Intervalo mínimo entre backups automáticos |
+
+**Preencha o `BACKUP_EXTERNAL_DIR`.** Backup no mesmo disco do banco protege contra erro humano e bug, mas não contra HD queimado, roubo ou ransomware.
+
+### Restaurar um backup
+
+1. **Feche o frontend e pare o backend.** Restaurar com o sistema no ar corrompe o banco.
+2. Renomeie o banco atual em vez de apagar (`erp.db` → `erp-quebrado.db`). Se a restauração der errado, você ainda tem o original.
+3. Copie o backup escolhido de `backups/` para `erp-backend/` e renomeie para `erp.db`.
+4. Se existirem `erp.db-wal` e `erp.db-shm` na pasta, apague os dois — eles pertencem ao banco antigo.
+5. Suba o backend e confira no sistema se os dados batem.
+
+Teste esse procedimento uma vez **antes** de precisar dele de verdade.
+
 ## Stack
 
 | Peça | Tecnologia |

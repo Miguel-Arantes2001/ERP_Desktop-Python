@@ -1,15 +1,14 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, status, HTTPException  
 from fastapi.security import OAuth2PasswordRequestForm ,OAuth2PasswordBearer
 import models
 from database import engine
 from migrate import run_migrations
+from backup import create_backup
 from fastapi.staticfiles import StaticFiles  
 from dotenv import load_dotenv
 import os
 from passlib.context import CryptContext
-
-run_migrations()
-models.Base.metadata.create_all(bind=engine)  
 
 load_dotenv()
 
@@ -18,7 +17,20 @@ ALGORITHM = os.getenv('ALGORITHM')
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES'))
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv('REFRESH_TOKEN_EXPIRE_DAYS'))
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        create_backup()
+    except Exception as error:
+        print(f"[backup] falhou na inicializacao: {error}")
+
+    run_migrations()
+    models.Base.metadata.create_all(bind=engine)
+
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

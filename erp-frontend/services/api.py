@@ -87,6 +87,7 @@ def _try_refresh_access_token() -> bool:
 def api_request(method: str, url, _retry_after_refresh: bool = True, **kwargs):
     headers = get_headers()
     kwargs["headers"] = headers
+    kwargs.setdefault("timeout", 10)
 
     try:
         response = requests.request(method, url, **kwargs)

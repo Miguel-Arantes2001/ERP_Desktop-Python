@@ -32,7 +32,7 @@ async def sales_summary(
     )
 
     total = result.total or 0
-    count = result.count or 0
+    count = result.count or 0   
     average_ticket = (total / count) if count else 0
 
     top_row = (

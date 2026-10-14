@@ -133,7 +133,7 @@ class StockView(QWidget):
 
 
 
-        btn_add.setFixedWidth(150)
+        btn_add.setFixedWidth(200)
 
         btn_add.clicked.connect(self.open_add_product)
 
@@ -362,7 +362,9 @@ class StockView(QWidget):
             return
 
 
-        products = list_products() or []
+        products = list(self.products) 
+        if not products:
+            products =  list_products() or []
 
         barcode = data["barcode"]
         if barcode and not is_placeholder_barcode(barcode):
@@ -405,9 +407,13 @@ class StockView(QWidget):
             return
 
         self._clear_search_silently()
-        self.load_stock(extra_product=product)
+        updated = list(self.products)
+        updated.append(product)
+        self.products = updated
+        self.populate_table(self.products)
+        self._apply_search_filter()
+        self._loaded = True
         self._scroll_to_product(product.get("id"))
-        self.table.viewport().update()
         QMessageBox.information(self, "Sucesso", "Produto cadastrado com sucesso")
 
 
