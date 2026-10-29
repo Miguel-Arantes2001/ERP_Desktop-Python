@@ -87,7 +87,8 @@ async def create_product(
         stock=product.stock,
         unit_of_measure=product.unit_of_measure,
         store_id=current_user.store_id,
-        description=product.description
+        description=product.description,
+        category = (product.category or "").strip() or None
     )
 
     db.add(p)
@@ -290,6 +291,11 @@ async def update_product(
 
     if data.unit_of_measure is not None:
         product.unit_of_measure = data.unit_of_measure
+
+    if data.category is not None:
+        category = data.category.strip()
+        product.category = category or None
+        
 
     db.commit()
     db.refresh(product)

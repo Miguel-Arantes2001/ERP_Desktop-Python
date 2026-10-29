@@ -32,3 +32,8 @@ def run_migrations():
             conn.execute(
                 text("ALTER TABLE products ADD COLUMN image_path VARCHAR")
             )
+        
+        if not _column_exists(conn, "products", "category"):
+            conn.execute(
+                text("ALTER TABLE products ADD COLUMN category VARCHAR")
+            )
