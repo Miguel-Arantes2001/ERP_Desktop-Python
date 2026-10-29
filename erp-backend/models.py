@@ -38,6 +38,7 @@ class Product(Base):
 
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
+    category = Column(String, nullable=True)
     barcode = Column(String, nullable=False)
     price = Column(Float, nullable=False)
     stock = Column(Float, nullable=True, default=None)

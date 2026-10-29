@@ -101,6 +101,27 @@ QDoubleSpinBox:focus,
 QDateEdit:focus {
     border: 1px solid #2563EB;
 }
+
+QComboBox {
+    padding: 8px 28px 8px 8px;
+    font-size: 13px;
+    min-height: 20px;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #FFFFFF;
+    color: #111827;
+    border: 1px solid #D1D5DB;
+    selection-background-color: #2563EB;
+    selection-color: #FFFFFF;
+    outline: none;
+    padding: 4px;
+}
+
+QComboBox QAbstractItemView::item {
+    min-height: 28px;
+    padding: 4px 8px;
+}
 QTextEdit:focus{
     border: 1px solid #2563EB;
 }

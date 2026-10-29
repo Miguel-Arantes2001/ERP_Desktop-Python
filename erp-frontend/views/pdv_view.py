@@ -379,7 +379,8 @@ class PDVView(QWidget):
             "price": price,
             "stock": stock,
             "unit_of_measure": data["unit_of_measure"],
-            "description": data["description"] or "Sem descrição"
+            "description": data["description"] or "Sem descrição",
+            "category": data.get("category") or None,
         })
 
         if not new_product:

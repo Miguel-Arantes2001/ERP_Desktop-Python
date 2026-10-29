@@ -7,11 +7,12 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
 
     QDialogButtonBox,QMessageBox,QTextEdit,QInputDialog,QCheckBox,QComboBox,
-    QHeaderView, QSizePolicy, QStackedWidget
+    QHeaderView, QSizePolicy, QStackedWidget, QStyledItemDelegate, QStyle,
+    QStyleOptionViewItem
 
 )
 
-from PySide6.QtCore import Qt, QSize, QTimer
+from PySide6.QtCore import Qt, QSize, QTimer, QEvent
 
 from services.products import (
     list_products,
@@ -30,8 +31,9 @@ from utils.product_images import (
 )
 from events import events
 
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QFont, QFontMetrics
 
+from utils.categories import category_options
 from utils.units import (
 
     UNIT_CHOICES,
@@ -60,20 +62,144 @@ from utils.product_display import (
 
 COL_PHOTO = 0
 COL_NAME = 1
-COL_DESC = 2
-COL_PRICE = 3
-COL_QTY = 4
-COL_UNIT = 5
-COL_BARCODE = 6
+COL_PRICE = 2
+COL_CATEGORY = 3
+COL_DESC = 4
+COL_QTY = 5
+COL_UNIT = 6
+COL_BARCODE = 7
 
 PHOTO_ICON_SIZE = 48
+PHOTO_COLUMN_WIDTH = 64
 STOCK_ROW_HEIGHT = 56
+NAME_ROW_HEIGHT_CAP = 120
+
+
+class WrappedTextDelegate(QStyledItemDelegate):
+    """Desenha o texto com quebra de linha.
+
+    Com `is_expanded`, a quebra só acontece na linha aberta. Nas demais,
+    o texto fica em uma linha, cortado com reticências.
+    """
+
+    def __init__(self, parent=None, bold=False, is_expanded=None):
+        super().__init__(parent)
+        self._bold = bold
+        self._is_expanded = is_expanded
+
+    def paint(self, painter, option, index):
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        text = opt.text
+        opt.text = ""
+
+        widget = option.widget
+        style = widget.style() if widget is not None else None
+        if style is None:
+            return
+
+        style.drawControl(
+            QStyle.ControlElement.CE_ItemViewItem,
+            opt,
+            painter,
+            widget,
+        )
+        if not text:
+            return
+
+        text_rect = style.subElementRect(
+            QStyle.SubElement.SE_ItemViewItemText,
+            opt,
+            widget,
+        )
+        selected = bool(opt.state & QStyle.StateFlag.State_Selected)
+        color = (
+            opt.palette.highlightedText().color()
+            if selected
+            else opt.palette.text().color()
+        )
+        font = QFont(opt.font)
+        font.setBold(self._bold)
+
+        painter.save()
+        painter.setFont(font)
+        painter.setPen(color)
+        if self._is_expanded is None or self._is_expanded(index.row()):
+            painter.drawText(
+                text_rect,
+                Qt.AlignmentFlag.AlignLeft
+                | Qt.AlignmentFlag.AlignTop
+                | Qt.TextFlag.TextWordWrap,
+                text,
+            )
+        else:
+            single_line = " ".join(text.split())
+            elided = QFontMetrics(font).elidedText(
+                single_line,
+                Qt.TextElideMode.ElideRight,
+                text_rect.width(),
+            )
+            painter.drawText(
+                text_rect,
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                elided,
+            )
+        painter.restore()
 
 
 def is_placeholder_barcode(barcode: str | None) -> bool:
     if not barcode or not str(barcode).strip():
         return True
     return str(barcode).strip().upper().startswith("INT-")
+
+
+def setup_category_combo(combo: QComboBox, current: str | None = None) -> None:
+    """Preenche o combo e seleciona a categoria atual, se houver.
+
+    O combo, por padrão, pede largura igual ao item mais longo. Nomes como
+    "Combustíveis e lubrificantes" estouram o formulário e o texto corta.
+    Aqui ele cresce junto com os outros campos, e a lista aberta mostra
+    o nome completo.
+    """
+    combo.clear()
+    combo.addItem("Selecione a categoria", None)
+    for name in category_options(current):
+        combo.addItem(name, name)
+
+    combo.setSizePolicy(
+        QSizePolicy.Policy.Expanding,
+        QSizePolicy.Policy.Fixed,
+    )
+    combo.setSizeAdjustPolicy(
+        QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+    )
+    combo.setMinimumContentsLength(28)
+    combo.setMinimumWidth(260)
+    combo.setMaxVisibleItems(14)
+
+    view = combo.view()
+    view.setTextElideMode(Qt.TextElideMode.ElideNone)
+    metrics = combo.fontMetrics()
+    widest = 0
+    for index in range(combo.count()):
+        widest = max(widest, metrics.horizontalAdvance(combo.itemText(index)))
+    view.setMinimumWidth(widest + 36)
+
+    current_clean = (current or "").strip()
+    if not current_clean:
+        combo.setCurrentIndex(0)
+        return
+
+    index = combo.findData(current_clean)
+    combo.setCurrentIndex(index if index >= 0 else 0)
+
+
+def selected_category(combo: QComboBox) -> str | None:
+    value = combo.currentData()
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def format_barcode_label(barcode: str | None) -> str:
@@ -122,6 +248,9 @@ class StockView(QWidget):
         self._loaded = False
         self._photo_load_token = 0
         self._pending_photos = []
+        self._name_expanded_row = None
+        self._fitting_columns = False
+        self._applying_row_heights = False
         events.sale_completed.connect(self._on_sale_completed)
         events.product_changed.connect(self._on_product_changed)
 
@@ -230,33 +359,53 @@ class StockView(QWidget):
 
 
 
-        self.table = QTableWidget(0, 7)
+        self.table = QTableWidget(0, 8)
 
         self.table.setHorizontalHeaderLabels(
 
-            ["Foto", "Produto", "Descrição", "Preço", "Quantidade", "Unidade", "Código de barras"]
+            ["Foto", "Produto", "Preço", "Categoria", "Descrição", "Quantidade", "Unidade", "Código de barras"]
 
         )
+        name_header = self.table.horizontalHeaderItem(COL_NAME)
+        if name_header:
+            name_header.setToolTip("Clique no nome do produto para expandir")
         self.table.setWordWrap(False)
         self.table.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.table.setIconSize(QSize(PHOTO_ICON_SIZE, PHOTO_ICON_SIZE))
-        self.table.setColumnWidth(COL_PHOTO, 64)
-        self.table.setColumnWidth(COL_PRICE, 125)
-        self.table.setColumnWidth(COL_QTY, 150)
-        self.table.setColumnWidth(COL_UNIT, 90)
-        self.table.setColumnWidth(COL_BARCODE, 180)
+        self.table.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.table.setItemDelegateForColumn(
+            COL_NAME,
+            WrappedTextDelegate(self.table, bold=True),
+        )
+        self.table.setItemDelegateForColumn(
+            COL_DESC,
+            WrappedTextDelegate(
+                self.table,
+                bold=False,
+                is_expanded=lambda row: row == self._name_expanded_row,
+            ),
+        )
+        desc_header = self.table.horizontalHeaderItem(COL_DESC)
+        if desc_header:
+            desc_header.setToolTip("Clique na descrição para abrir o texto completo")
+
 
         header = self.table.horizontalHeader()
         header.setStretchLastSection(False)
-        header.setSectionResizeMode(COL_PHOTO, QHeaderView.Fixed)
-        header.setSectionResizeMode(COL_NAME, QHeaderView.Stretch)
-        header.setSectionResizeMode(COL_DESC, QHeaderView.Stretch)
-        header.setSectionResizeMode(COL_PRICE, QHeaderView.Fixed)
-        header.setSectionResizeMode(COL_QTY, QHeaderView.Fixed)
-        header.setSectionResizeMode(COL_UNIT, QHeaderView.Fixed)
-        header.setSectionResizeMode(COL_BARCODE, QHeaderView.Fixed)
+        header.setMinimumSectionSize(PHOTO_COLUMN_WIDTH)
+        for column in range(self.table.columnCount()):
+            header.setSectionResizeMode(column, QHeaderView.Fixed)
+        category_header = self.table.horizontalHeaderItem(COL_CATEGORY)
+        if category_header:
+            category_header.setToolTip("Categoria")
+        price_header = self.table.horizontalHeaderItem(COL_PRICE)
+        if price_header:
+            price_header.setToolTip("Preço")
         self.table.verticalHeader().setDefaultSectionSize(STOCK_ROW_HEIGHT)
         self.table.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)
+        self.table.viewport().installEventFilter(self)
 
 
 
@@ -269,6 +418,80 @@ class StockView(QWidget):
 
         self.setLayout(layout)
         self._update_action_buttons_state()
+
+    def eventFilter(self, obj, event):
+        if (
+            obj is self.table.viewport()
+            and event.type() == QEvent.Type.Resize
+        ):
+            self._fit_stock_columns()
+        return super().eventFilter(obj, event)
+
+    def _fit_stock_columns(self):
+        """Distribui a largura visível sem jogar coluna para fora da tela.
+
+        O preço vem logo depois do nome e continua estreito. O código de
+        barras reserva espaço para 13 dígitos e para o título da coluna.
+        A descrição fica estreita; o texto todo aparece ao clicar nela.
+        O que sobra vai para o nome do produto.
+        """
+        if self._fitting_columns:
+            return
+
+        viewport = self.table.viewport().width()
+        if viewport < 100:
+            return
+
+        self._fitting_columns = True
+        try:
+            metrics = self.table.fontMetrics()
+            header_metrics = self.table.horizontalHeader().fontMetrics()
+            photo = PHOTO_COLUMN_WIDTH
+            base = metrics.horizontalAdvance("R$ 999.99/kg") + 12
+            price = base + 28
+            unit = base + 16
+            qty = base + 28
+            barcode = max(
+                metrics.horizontalAdvance("7891234567890"),
+                header_metrics.horizontalAdvance("Código de barras"),
+            ) + 28
+            category = (
+                metrics.horizontalAdvance("Combustíveis e lubrificantes") + 16
+            )
+            reserved = photo + price + unit + qty + barcode + category
+            pool = viewport - reserved
+            desc = max(140, int(pool * 0.32))
+            name = pool - desc
+
+            while name < 160 and desc > 120:
+                desc -= 1
+                name += 1
+            while name < 140 and qty > base + 8:
+                qty -= 1
+                name += 1
+            while name < 120 and category > base + 40:
+                category -= 1
+                name += 1
+
+            widths = {
+                COL_PHOTO: photo,
+                COL_PRICE: price,
+                COL_NAME: max(80, name),
+                COL_CATEGORY: category,
+                COL_DESC: desc,
+                COL_QTY: qty,
+                COL_UNIT: unit,
+                COL_BARCODE: barcode,
+            }
+            widths[COL_NAME] += viewport - sum(widths.values())
+
+            header = self.table.horizontalHeader()
+            for column, width in widths.items():
+                header.resizeSection(column, max(24, width))
+        finally:
+            self._fitting_columns = False
+
+        self._apply_row_heights()
 
 
 
@@ -397,7 +620,9 @@ class StockView(QWidget):
 
             "unit_of_measure": data["unit_of_measure"],
 
-            "description": data["description"] or "Sem descrição"
+            "description": data["description"] or "Sem descrição",
+
+            "category": data.get("category") or None,
 
         })
 
@@ -555,6 +780,17 @@ class StockView(QWidget):
 
 
     def _on_table_cell_clicked(self, row, col):
+        if col == COL_NAME:
+            self._toggle_name_expansion(row)
+            return
+
+        if col == COL_DESC:
+            self._open_description(row)
+            return
+
+        if self._name_expanded_row is not None:
+            self._collapse_name_column()
+
         if col != COL_PHOTO:
             return
         self.table.selectRow(row)
@@ -563,6 +799,86 @@ class StockView(QWidget):
             self.open_product_photo_preview()
         else:
             self.open_product_photo()
+
+    def _open_description(self, row):
+        name_item = self.table.item(row, COL_NAME)
+        desc_item = self.table.item(row, COL_DESC)
+        name = name_item.text() if name_item else ""
+        description = desc_item.text() if desc_item else ""
+        DescriptionDialog(name, description, self).exec()
+
+    def _toggle_name_expansion(self, row):
+        if self._name_expanded_row == row:
+            self._collapse_name_column()
+            return
+        self._collapse_name_column()
+        self._expand_name_column(row)
+
+    def _expand_name_column(self, row):
+        self._name_expanded_row = row
+        self._apply_row_heights()
+
+    def _wrapped_text_height(
+        self,
+        text: str,
+        width: int,
+        bold: bool,
+        cap: int | None,
+    ) -> int:
+        clean = (text or "").strip()
+        if not clean:
+            return STOCK_ROW_HEIGHT
+        font = QFont(self.table.font())
+        font.setBold(bold)
+        metrics = QFontMetrics(font)
+        wrapped = metrics.boundingRect(
+            0,
+            0,
+            max(width - 12, 40),
+            0,
+            Qt.TextFlag.TextWordWrap,
+            clean,
+        ).height() + 16
+        height = max(STOCK_ROW_HEIGHT, wrapped)
+        if cap is not None:
+            height = min(height, cap)
+        return height
+
+    def _apply_row_heights(self):
+        """Ajusta a altura: nome sempre legível, descrição só na linha aberta."""
+        if self._applying_row_heights:
+            return
+        self._applying_row_heights = True
+        try:
+            for row in range(self.table.rowCount()):
+                name_item = self.table.item(row, COL_NAME)
+                expanded = row == self._name_expanded_row
+                name_height = self._wrapped_text_height(
+                    name_item.text() if name_item else "",
+                    self.table.columnWidth(COL_NAME),
+                    True,
+                    None if expanded else NAME_ROW_HEIGHT_CAP,
+                )
+                desc_height = STOCK_ROW_HEIGHT
+                if expanded:
+                    desc_item = self.table.item(row, COL_DESC)
+                    desc_height = self._wrapped_text_height(
+                        desc_item.text() if desc_item else "",
+                        self.table.columnWidth(COL_DESC),
+                        False,
+                        None,
+                    )
+                self.table.setRowHeight(
+                    row,
+                    max(STOCK_ROW_HEIGHT, name_height, desc_height),
+                )
+        finally:
+            self._applying_row_heights = False
+        self.table.viewport().update()
+
+    def _collapse_name_column(self):
+        self._name_expanded_row = None
+        self._fit_stock_columns()
 
     def open_product_photo_preview(self):
         product = self._get_selected_product()
@@ -717,6 +1033,7 @@ class StockView(QWidget):
 
 
     def populate_table(self, products):
+        self._collapse_name_column()
 
         products = sorted(
             products,
@@ -783,14 +1100,13 @@ class StockView(QWidget):
 
 
             price = product.get("price", 0)
-
-            self.table.setItem(
-                row,
-                COL_PRICE,
-                QTableWidgetItem(
-                    format_unit_price(price, unit)
-                )
+            price_text = format_unit_price(price, unit)
+            item_price = QTableWidgetItem(price_text)
+            item_price.setTextAlignment(
+                Qt.AlignRight | Qt.AlignVCenter
             )
+            item_price.setToolTip(price_text)
+            self.table.setItem(row, COL_PRICE, item_price)
 
             stock_value = product.get("stock")
 
@@ -876,7 +1192,12 @@ class StockView(QWidget):
                 item_barcode
             )
 
-            for col in range(7):
+            category_label = (product.get("category") or "").strip()
+            item_category = QTableWidgetItem(category_label)
+            item_category.setToolTip(category_label)
+            self.table.setItem(row, COL_CATEGORY, item_category)
+
+            for col in range(8):
 
                 item = self.table.item(row, col)
 
@@ -887,8 +1208,10 @@ class StockView(QWidget):
                         | Qt.ItemIsEnabled
                     )
 
+            
+
         self._update_action_buttons_state()
-        self.table.viewport().update()
+        self._apply_row_heights()
         self._pending_photos = pending
         if pending:
             QTimer.singleShot(0, lambda: self._load_next_photo(token))
@@ -907,6 +1230,38 @@ class StockView(QWidget):
         if self._pending_photos:
             QTimer.singleShot(0, lambda: self._load_next_photo(token))
 
+
+
+class DescriptionDialog(QDialog):
+    """Mostra a descrição completa em uma área larga, com rolagem."""
+
+    def __init__(self, product_name: str, description: str, parent=None):
+        super().__init__(parent)
+
+        self.setWindowTitle("Descrição do produto")
+        self.setMinimumSize(560, 360)
+        self.resize(640, 420)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        title = QLabel(product_name or "Produto")
+        title.setWordWrap(True)
+        title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        layout.addWidget(title)
+
+        text = QTextEdit()
+        text.setReadOnly(True)
+        text.setPlainText(description.strip() or "Sem descrição")
+        text.setStyleSheet("font-size: 14px;")
+        layout.addWidget(text)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Close)  # type: ignore
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        self.setLayout(layout)
 
 
 class AddBarcodeDialog(QDialog):
@@ -957,7 +1312,7 @@ class EditProductDialog(QDialog):
         super().__init__(parent)
 
         self.setWindowTitle("Editar produto")
-        self.setMinimumWidth(360)
+        self.setMinimumWidth(480)
 
         layout = QVBoxLayout()
         layout.setContentsMargins(16, 16, 16, 16)
@@ -965,6 +1320,9 @@ class EditProductDialog(QDialog):
 
         form = QFormLayout()
         form.setSpacing(10)
+        form.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
+        )
 
         self.name_input = QLineEdit()
         self.name_input.setText(product.get("name", "").strip())
@@ -994,6 +1352,10 @@ class EditProductDialog(QDialog):
         )
         bind_growing_text_edit(self.description_input)
         form.addRow("Descrição:", self.description_input)
+
+        self.category_input = QComboBox()
+        setup_category_combo(self.category_input, product.get("category"))
+        form.addRow("Categoria:", self.category_input)
 
         layout.addLayout(form)
 
@@ -1025,6 +1387,7 @@ class EditProductDialog(QDialog):
             "price": self.price_input.value(),
             "unit_of_measure": self.unit_combo.currentData(),
             "description": description or "Sem descrição",
+            "category": selected_category(self.category_input),
         }
 
 
@@ -1038,7 +1401,7 @@ class AddProductDialog(QDialog):
 
         self.setWindowTitle("Cadastrar Produto")
 
-        self.setMinimumWidth(360)
+        self.setMinimumWidth(480)
 
 
 
@@ -1053,6 +1416,9 @@ class AddProductDialog(QDialog):
         form = QFormLayout()
 
         form.setSpacing(10)
+        form.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
+        )
 
 
 
@@ -1131,6 +1497,10 @@ class AddProductDialog(QDialog):
         self.description_input = QTextEdit()
         bind_growing_text_edit(self.description_input)
         form.addRow("Descrição:", self.description_input)
+
+        self.category_input = QComboBox()
+        setup_category_combo(self.category_input)
+        form.addRow("Categoria:", self.category_input)
 
 
 
@@ -1230,7 +1600,9 @@ class AddProductDialog(QDialog):
 
             "without_barcode": without_barcode,
 
-            "description": self.description_input.toPlainText()
+            "description": self.description_input.toPlainText(),
+
+            "category": selected_category(self.category_input),
 
         }
 

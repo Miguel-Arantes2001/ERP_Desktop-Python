@@ -13,6 +13,7 @@ class ProductBaseSchema(BaseModel):
     stock: float  | None = None
     unit_of_measure: UnitOfMeasure = "un"
     description: str | None = None
+    category: str | None = None
 
 
 class ProductCreateSchema(BaseModel):
@@ -22,6 +23,7 @@ class ProductCreateSchema(BaseModel):
     stock: float | None = None
     unit_of_measure: UnitOfMeasure = "un"
     description: str | None = None
+    category: str | None = None
 
 
 class SaleItemCreateSchema(BaseModel):
@@ -125,3 +127,4 @@ class ProductUpdateSchema(BaseModel):
     price: float | None = None
     description: str | None = None
     unit_of_measure: UnitOfMeasure | None = None
+    category: str | None = None
